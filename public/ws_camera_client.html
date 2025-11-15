@@ -1,0 +1,234 @@
+<!-- Copiado de la versión de prueba: cliente WebSocket para pruebas locales -->
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>WS Camera Client - YOLO Backend (Prueba)</title>
+  <style>
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto;max-width:980px;margin:18px auto;padding:12px}
+    label{display:inline-block;margin:6px 0}
+    input,select,button{margin:6px 6px 6px 0}
+    #controls{border:1px solid #ddd;padding:12px;border-radius:6px}
+    #log{background:#111;color:#eee;padding:8px;height:120px;overflow:auto;font-family:monospace;font-size:12px}
+    #preview{width:640px;height:360px;background:#000;display:block}
+    .small{font-size:13px;color:#555}
+  </style>
+</head>
+<body>
+  <h2>WebSocket Camera Client (YOLO backend) - Prueba</h2>
+  <div id="controls">
+    <div>
+      <label>Backend host (no scheme, e.g. <span class="small">localhost:8000</span>):</label>
+      <input id="host" value="localhost:8000" />
+      <label>Scheme:</label>
+      <select id="scheme"><option>ws</option><option>wss</option></select>
+    </div>
+
+    <div>
+      <label>Mode:</label>
+      <label><input type="radio" name="mode" value="camera_url" checked /> camera_url</label>
+      <label><input type="radio" name="mode" value="camera_local" /> camera_local</label>
+    </div>
+
+    <div id="urlRow">
+      <label>Camera URL:</label>
+      <input id="cameraUrl" placeholder="rtsp://... or http://... or file://..." style="width:420px" />
+    </div>
+
+    <div style="margin-top:8px">
+      <button id="connectBtn">Connect & Send</button>
+      <button id="disconnectBtn" disabled>Disconnect</button>
+      <span class="small" id="status">Disconnected</span>
+    </div>
+  </div>
+
+  <h3>Preview</h3>
+  <img id="preview" alt="processed frames" />
+
+  <h3>Logs</h3>
+  <div id="log"></div>
+
+  <!-- Hidden video + canvas for local capture -->
+  <video id="localVideo" autoplay muted playsinline style="display:none"></video>
+  <canvas id="captureCanvas" style="display:none"></canvas>
+
+  <script>
+  // Modular WebSocket camera client (misma implementación de prueba)
+  (function(){
+    const hostEl = document.getElementById('host');
+    const schemeEl = document.getElementById('scheme');
+    const modeEls = document.getElementsByName('mode');
+    const cameraUrlEl = document.getElementById('cameraUrl');
+    const connectBtn = document.getElementById('connectBtn');
+    const disconnectBtn = document.getElementById('disconnectBtn');
+    const statusEl = document.getElementById('status');
+    const logEl = document.getElementById('log');
+    const previewImg = document.getElementById('preview');
+
+    const localVideo = document.getElementById('localVideo');
+    const captureCanvas = document.getElementById('captureCanvas');
+
+    let ws = null;
+    let captureRunning = false;
+    let captureReqId = null;
+    let mediaStream = null;
+
+    function log(msg, isError){
+      console[isError ? 'error' : 'log'](msg);
+      const line = document.createElement('div');
+      line.textContent = (new Date()).toLocaleTimeString() + ' - ' + msg;
+      if(isError) line.style.color = '#ff8080';
+      logEl.appendChild(line);
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    function getSelectedMode(){
+      for(const r of modeEls) if(r.checked) return r.value;
+      return 'camera_url';
+    }
+
+    function buildWsUrl(){
+      const scheme = schemeEl.value || 'ws';
+      const host = hostEl.value.trim();
+      if(!host) throw new Error('Host is empty');
+      return `${scheme}://${host}/ws/camara-directa`;
+    }
+
+    function setStatus(s){ statusEl.textContent = s; }
+
+    function connectAndSend(){
+      if(ws) { log('Already connected'); return; }
+      let url;
+      try{ url = buildWsUrl(); }catch(e){ log(e.message, true); return; }
+      log(`Connecting to ${url}`);
+      ws = new WebSocket(url);
+      ws.binaryType = 'arraybuffer';
+
+      ws.onopen = async () => {
+        setStatus('Connected');
+        connectBtn.disabled = true;
+        disconnectBtn.disabled = false;
+        log('WebSocket open');
+
+        const mode = getSelectedMode();
+        if(mode === 'camera_url'){
+          const camUrl = cameraUrlEl.value.trim();
+          if(!camUrl){ log('Camera URL required for camera_url mode', true); return; }
+          const msg = { type: 'camera_url', url: camUrl };
+          ws.send(JSON.stringify(msg));
+          log('Sent initial message: ' + JSON.stringify(msg));
+        } else {
+          // camera_local
+          const msg = { type: 'camera_local' };
+          ws.send(JSON.stringify(msg));
+          log('Sent initial message: ' + JSON.stringify(msg));
+          try{
+            await startLocalCapture();
+            log('Started local capture and sending frames');
+          }catch(err){ log('Local capture error: ' + err.message, true); }
+        }
+      };
+
+      ws.onmessage = (ev) => {
+        // Expect binary JPEG frames (ArrayBuffer)
+        if(ev.data instanceof ArrayBuffer || ev.data instanceof Blob){
+          const buf = ev.data instanceof Blob ? ev.data : new Blob([ev.data]);
+          const blob = buf instanceof Blob ? buf : new Blob([buf], { type: 'image/jpeg' });
+          const url = URL.createObjectURL(blob);
+          // assign to img; revoke old object once loaded
+          const prev = previewImg.src;
+          previewImg.onload = () => { try{ if(prev && prev.startsWith('blob:')) URL.revokeObjectURL(prev); }catch(e){} };
+          previewImg.src = url;
+        } else {
+          // text message
+          log('Text message from server: ' + ev.data);
+        }
+      };
+
+      ws.onerror = (ev) => {
+        log('WebSocket error', true);
+      };
+
+      ws.onclose = (ev) => {
+        setStatus('Disconnected');
+        connectBtn.disabled = false;
+        disconnectBtn.disabled = true;
+        log('WebSocket closed');
+        stopLocalCapture();
+        ws = null;
+      };
+    }
+
+    function disconnect(){
+      if(ws) ws.close();
+      else log('No active WebSocket');
+    }
+
+    async function startLocalCapture(){
+      if(captureRunning) return;
+      // request camera
+      mediaStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+      localVideo.srcObject = mediaStream;
+      await localVideo.play();
+
+      // size canvas to video
+      captureCanvas.width = localVideo.videoWidth || 640;
+      captureCanvas.height = localVideo.videoHeight || 480;
+      const ctx = captureCanvas.getContext('2d');
+
+      captureRunning = true;
+
+      // use requestAnimationFrame loop to capture frames
+      async function captureFrame(){
+        if(!captureRunning) return;
+        try{
+          ctx.drawImage(localVideo, 0, 0, captureCanvas.width, captureCanvas.height);
+          // toBlob with quality 0.7
+          captureCanvas.toBlob(async (blob) => {
+            if(!blob) return;
+            // send blob directly (WebSocket supports Blob)
+            if(ws && ws.readyState === WebSocket.OPEN){
+              try{ ws.send(blob); }
+              catch(e){ log('Send error: ' + e.message, true); }
+            }
+          }, 'image/jpeg', 0.7);
+        }catch(e){ log('Capture error: ' + e.message, true); }
+        captureReqId = requestAnimationFrame(captureFrame);
+      }
+      captureReqId = requestAnimationFrame(captureFrame);
+    }
+
+    function stopLocalCapture(){
+      captureRunning = false;
+      if(captureReqId) { cancelAnimationFrame(captureReqId); captureReqId = null; }
+      if(mediaStream){
+        mediaStream.getTracks().forEach(t => t.stop());
+        mediaStream = null;
+      }
+      localVideo.srcObject = null;
+    }
+
+    // UI wiring
+    connectBtn.addEventListener('click', () => connectAndSend());
+    disconnectBtn.addEventListener('click', () => disconnect());
+
+    // show/hide camera URL input depending on mode
+    function updateModeVisibility(){
+      const mode = getSelectedMode();
+      document.getElementById('urlRow').style.display = mode === 'camera_url' ? 'block' : 'none';
+    }
+    for(const r of modeEls) r.addEventListener('change', updateModeVisibility);
+    updateModeVisibility();
+
+    // expose small API for console/testing
+    window.WS_CAMERA_CLIENT = {
+      connectAndSend,
+      disconnect,
+      getWs: () => ws
+    };
+
+  })();
+  </script>
+</body>
+</html>
