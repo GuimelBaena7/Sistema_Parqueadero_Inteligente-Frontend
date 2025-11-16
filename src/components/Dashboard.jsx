@@ -24,40 +24,29 @@ const Dashboard = ({ searchTerm, cameras, onDeleteCamera }) => {
   const fetchVehiculosActivos = async () => {
     try {
       const apiUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
-      // GET /api/registros?estado=activo - obtener vehículos activos del backend
+      // Obtener registros activos desde SQLite de main.py
       const response = await axios.get(`${apiUrl}/registros?estado=activo`);
-      // El backend devuelve {registros: [...]} o solo [...]
-      const data = response.data?.registros || response.data || [];
-      setVehiculosActivos(Array.isArray(data) ? data : []);
+      
+      // El backend devuelve {registros: [...], total: n, fuente: "sqlite_main"}
+      const data = response.data?.registros || [];
+      
+      // Transformar datos de SQLite a formato esperado por el frontend
+      const vehiculosTransformados = data.map(registro => ({
+        id: registro.id,
+        placa: registro.numero_de_placa || registro.placa_final,
+        hora_entrada: registro.hora_entrada,
+        tipo_vehiculo: registro.tipo_vehiculo || 'car',
+        url_imagen: registro.url_imagen,
+        estado: registro.estado || 'activo',
+        saldo: registro.saldo || 0,
+        id_sort_entrada: registro.id_sort_entrada,
+        frames_hasta_placa: registro.frames_hasta_placa
+      }));
+      
+      setVehiculosActivos(vehiculosTransformados);
     } catch (error) {
       console.error('Error cargando vehículos activos:', error);
-      // Datos de ejemplo
-      setVehiculosActivos([
-        {
-          id: 1,
-          placa: 'ABC123',
-          hora_entrada: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-          tipo_vehiculo: 'Automóvil',
-          camara_id: 1,
-          url_imagen: null,
-          estado: 'activo',
-          valor_actual: 6000,
-          horas_transcurridas: 2,
-          factura_id: 1
-        },
-        {
-          id: 2,
-          placa: 'XYZ789',
-          hora_entrada: new Date(Date.now() - 45 * 60 * 1000).toISOString(),
-          tipo_vehiculo: 'Motocicleta',
-          camara_id: 2,
-          url_imagen: null,
-          estado: 'activo',
-          valor_actual: 3000,
-          horas_transcurridas: 1,
-          factura_id: 2
-        }
-      ]);
+      setVehiculosActivos([]);
     } finally {
       setLoading(false);
     }
@@ -96,7 +85,7 @@ const Dashboard = ({ searchTerm, cameras, onDeleteCamera }) => {
         <div className="lg:col-span-2">
           <div className="bg-white rounded-lg shadow-lg p-4">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-semibold text-gray-800">🚙 Vehículos Activos</h2>
+              <h2 className="text-xl font-semibold text-gray-800">Vehículos Activos</h2>
               <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-sm font-medium">
                 {vehiculosFiltrados.length}
               </span>
@@ -109,7 +98,11 @@ const Dashboard = ({ searchTerm, cameras, onDeleteCamera }) => {
               </div>
             ) : vehiculosFiltrados.length === 0 ? (
               <div className="text-center py-8 text-gray-500">
-                <div className="text-4xl mb-2">🚗</div>
+                <div className="w-16 h-16 mx-auto mb-4 bg-gray-100 rounded-full flex items-center justify-center">
+                  <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                  </svg>
+                </div>
                 <p>No hay vehículos activos</p>
                 {searchTerm && (
                   <p className="text-sm mt-1">
@@ -131,9 +124,12 @@ const Dashboard = ({ searchTerm, cameras, onDeleteCamera }) => {
 
             <button
               onClick={fetchVehiculosActivos}
-              className="w-full mt-4 bg-blue-500 hover:bg-blue-600 text-white py-2 rounded-lg text-sm font-medium transition-colors"
+              className="w-full mt-4 bg-blue-500 hover:bg-blue-600 text-white py-2 rounded-lg text-sm font-medium transition-colors flex items-center justify-center space-x-2"
             >
-              🔄 Actualizar
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              <span>Actualizar</span>
             </button>
           </div>
         </div>

@@ -17,34 +17,18 @@ const AddCamera = ({ onCameraAdded }) => {
     if (!formData.nombre) return;
     if (cameraType === 'ip' && !formData.url) return;
 
-    setLoading(true);
-    try {
-      const apiUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
-      const cameraData = {
-        nombre: formData.nombre,
-        tipo: cameraType,
-        url: cameraType === 'local' ? 'local://camera' : formData.url
-      };
-      
-      const response = await axios.post(`${apiUrl}/camaras`, cameraData);
-      // El backend devuelve {success: true, camera_id: ...}
-      const newCamera = {
-        id: response.data?.camera_id || response.data?.id || Date.now(),
-        nombre: formData.nombre,
-        tipo: cameraType,
-        url: cameraData.url,
-        estado: 'inactivo',
-        creado: new Date().toISOString()
-      };
-      onCameraAdded(newCamera);
-      resetForm();
-    } catch (error) {
-      console.error('❌ Error agregando cámara:', error.response?.data || error.message);
-      alert('Error: ' + (error.response?.data?.detail || error.message));
-      // NO simular éxito - mostrar el error
-    } finally {
-      setLoading(false);
-    }
+    // Agregar cámara directamente - sin necesidad de API
+    const newCamera = {
+      id: Date.now(),
+      nombre: formData.nombre,
+      tipo: cameraType,
+      url: cameraType === 'local' ? 'local://camera' : formData.url,
+      estado: 'conectando',
+      creado: new Date().toISOString()
+    };
+    
+    onCameraAdded(newCamera);
+    resetForm();
   };
 
   const resetForm = () => {
@@ -114,30 +98,36 @@ const AddCamera = ({ onCameraAdded }) => {
 
                 <div>
                   <label className="block text-sm font-semibold text-slate-700 mb-2">
-                    Tipo de cámara
+                    Tipo de fuente de video
                   </label>
-                  <div className="flex space-x-4 mb-4">
-                    <label className="flex items-center">
+                  <div className="space-y-2">
+                    <label className="flex items-center p-3 border border-slate-200 rounded-lg hover:bg-slate-50 cursor-pointer">
                       <input
                         type="radio"
                         name="cameraType"
                         value="ip"
                         checked={cameraType === 'ip'}
                         onChange={(e) => setCameraType(e.target.value)}
-                        className="mr-2"
+                        className="mr-3"
                       />
-                      <span className="text-sm">Cámara IP</span>
+                      <div>
+                        <span className="text-sm font-medium text-slate-700">🌐 Cámara IP</span>
+                        <p className="text-xs text-slate-500">Se capturará en tu PC desde la URL proporcionada</p>
+                      </div>
                     </label>
-                    <label className="flex items-center">
+                    <label className="flex items-center p-3 border border-slate-200 rounded-lg hover:bg-slate-50 cursor-pointer">
                       <input
                         type="radio"
                         name="cameraType"
                         value="local"
                         checked={cameraType === 'local'}
                         onChange={(e) => setCameraType(e.target.value)}
-                        className="mr-2"
+                        className="mr-3"
                       />
-                      <span className="text-sm">Cámara Local</span>
+                      <div>
+                        <span className="text-sm font-medium text-slate-700">📹 Cámara del Dispositivo</span>
+                        <p className="text-xs text-slate-500">Cámara integrada de tu PC o teléfono</p>
+                      </div>
                     </label>
                   </div>
                 </div>
@@ -145,34 +135,37 @@ const AddCamera = ({ onCameraAdded }) => {
                 {cameraType === 'ip' && (
                   <div>
                     <label className="block text-sm font-semibold text-slate-700 mb-2">
-                      URL de la cámara
+                      URL de la cámara IP
                     </label>
                     <input
                       type="url"
                       value={formData.url}
                       onChange={(e) => setFormData({...formData, url: e.target.value})}
-                      placeholder="http://192.168.1.100:8080/video"
+                      placeholder="http://192.168.1.100:8080/video o rtsp://..."
                       className="w-full px-4 py-3 border border-slate-300 rounded-xl bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                       required
                     />
+                    <p className="text-xs text-slate-500 mt-2">
+                      💡 La cámara se capturará localmente en tu PC. Los frames se procesarán y enviarán al backend.
+                    </p>
                   </div>
                 )}
 
                 {cameraType === 'local' && (
-                  <div className="p-4 bg-green-50 rounded-lg border border-green-200">
+                  <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
                     <div className="flex items-center mb-2">
-                      <svg className="w-5 h-5 text-green-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg className="w-5 h-5 text-blue-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
                       </svg>
-                      <span className="text-sm font-semibold text-green-800">Cámara Local</span>
+                      <span className="text-sm font-semibold text-blue-800">Cámara del Dispositivo</span>
                     </div>
-                    <p className="text-xs text-green-700 mb-3">
-                      Se usará la cámara integrada de tu dispositivo. Haz clic en "Configurar Cámara" para probarla.
+                    <p className="text-xs text-blue-700 mb-3">
+                      Se usará la cámara integrada de tu dispositivo. Haz clic en "Configurar Cámara" para activarla.
                     </p>
                     <button
                       type="button"
                       onClick={() => setShowLocalCamera(true)}
-                      className="text-sm bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg transition-colors"
+                      className="text-sm bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors"
                     >
                       📹 Configurar Cámara Local
                     </button>
@@ -183,24 +176,17 @@ const AddCamera = ({ onCameraAdded }) => {
               <div className="flex space-x-3 pt-2">
                 <button
                   type="button"
-                  onClick={resetForm}
+                  onClick={() => setIsOpen(false)}
                   className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 py-3 rounded-xl font-semibold transition-colors"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
-                  disabled={loading || (cameraType === 'ip' && !formData.url)}
+                  disabled={!formData.nombre || (cameraType === 'ip' && !formData.url)}
                   className="flex-1 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white py-3 rounded-xl font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {loading ? (
-                    <div className="flex items-center justify-center space-x-2">
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                      <span>Agregando...</span>
-                    </div>
-                  ) : (
-                    'Agregar Cámara'
-                  )}
+                  Agregar Cámara
                 </button>
               </div>
             </form>

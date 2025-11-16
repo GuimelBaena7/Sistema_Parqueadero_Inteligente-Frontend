@@ -10,6 +10,7 @@ import Dashboard from './components/Dashboard';
 import LoadingSpinner from './components/LoadingSpinner';
 import ErrorBoundary from './components/ErrorBoundary';
 import VideoStream from './components/VideoStream';
+import RegistrosSQLite from './components/RegistrosSQLite';
 
 function App() {
   const [searchTerm, setSearchTerm] = useState('');
@@ -24,7 +25,7 @@ function App() {
   const fetchCameras = async () => {
     try {
       const apiUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
-      console.log('🔍 Cargando cámaras desde:', apiUrl);
+      console.log('Cargando cámaras desde:', apiUrl);
       
       const response = await axios.get(`${apiUrl}/camaras`, {
         headers: {
@@ -34,9 +35,9 @@ function App() {
       
       const camerasData = response.data?.camaras || response.data || [];
       setCameras(Array.isArray(camerasData) ? camerasData : []);
-      console.log('✅ Cámaras cargadas:', camerasData.length);
+      console.log('Cámaras cargadas:', camerasData.length);
     } catch (error) {
-      console.error('❌ Error cargando cámaras:', error.message);
+      console.error('Error cargando cámaras:', error.message);
       setError('Error conectando con el servidor');
       // Cámaras de ejemplo si falla la API
       setCameras([
@@ -65,7 +66,7 @@ function App() {
   };
 
   const handleCameraAdded = async (newCamera) => {
-    console.log('📹 Agregando nueva cámara:', newCamera);
+    console.log('Agregando nueva cámara:', newCamera);
     
     // Agregar nueva cámara a la lista
     setCameras(prev => [...prev, newCamera]);
@@ -93,9 +94,9 @@ function App() {
             return updated;
           });
         }
-        console.log('✅ Cámara guardada en servidor');
+        console.log('Cámara guardada en servidor');
       } catch (error) {
-        console.error('❌ Error guardando cámara:', error.message);
+        console.error('Error guardando cámara:', error.message);
         setError('Error guardando cámara en servidor');
       }
     }
@@ -116,9 +117,9 @@ function App() {
             'ngrok-skip-browser-warning': 'true'
           }
         });
-        console.log('✅ Cámara eliminada del servidor');
+        console.log('Cámara eliminada del servidor');
       } catch (error) {
-        console.error('❌ Error eliminando cámara:', error.message);
+        console.error('Error eliminando cámara:', error.message);
         setError('Error eliminando cámara del servidor');
       }
     }
@@ -160,6 +161,10 @@ function App() {
               <Route
                 path="/stream"
                 element={<VideoStream />}
+              />
+              <Route
+                path="/registros"
+                element={<RegistrosSQLite />}
               />
             </Routes>
           </Suspense>

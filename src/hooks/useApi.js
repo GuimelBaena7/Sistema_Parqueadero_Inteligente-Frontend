@@ -41,10 +41,15 @@ export const useApi = () => {
       });
       
       const response = await api.get(`/registros?${params}`);
-      return response.data;
+      // El backend devuelve {registros: [...], total: n, fuente: "sqlite_main"}
+      return {
+        registros: response.data.registros || [],
+        total: response.data.total || 0,
+        fuente: response.data.fuente || 'unknown'
+      };
     } catch (error) {
-      toast.error('Error al cargar registros');
-      throw error;
+      console.error('Error al cargar registros:', error);
+      return { registros: [], total: 0, error: error.message };
     } finally {
       setLoading(false);
     }
@@ -110,8 +115,28 @@ export const useApi = () => {
       const response = await api.get('/stats');
       return response.data;
     } catch (error) {
-      toast.error('Error al cargar estadísticas');
-      throw error;
+      console.error('Error al cargar estadísticas:', error);
+      return {
+        registros_total: 0,
+        registros_activos: 0,
+        registros_cerrados: 0,
+        ingresos_hoy: 0,
+        camaras_activas: 0,
+        error: error.message
+      };
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const getImagenesDetecciones = useCallback(async () => {
+    setLoading(true);
+    try {
+      const response = await api.get('/detecciones/imagenes');
+      return response.data;
+    } catch (error) {
+      console.error('Error al cargar imágenes:', error);
+      return { imagenes: [], total: 0, error: error.message };
     } finally {
       setLoading(false);
     }
@@ -125,6 +150,7 @@ export const useApi = () => {
     createRegistro,
     updateRegistro,
     deleteRegistro,
-    getStats
+    getStats,
+    getImagenesDetecciones
   };
 };
