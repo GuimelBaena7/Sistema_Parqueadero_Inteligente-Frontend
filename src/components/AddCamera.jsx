@@ -57,7 +57,7 @@ const AddCamera = ({ onCameraAdded }) => {
     <>
       <button
         onClick={() => setIsOpen(true)}
-        className="flex items-center space-x-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium transition-colors shadow-sm"
+        className="flex items-center space-x-2 bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded-lg font-medium transition-colors text-sm"
       >
         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -67,12 +67,12 @@ const AddCamera = ({ onCameraAdded }) => {
 
       {isOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md transform transition-all">
+          <div className="bg-slate-800 rounded-lg shadow-2xl p-6 w-full max-w-md border border-slate-700">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-bold text-slate-900">Agregar Nueva Cámara</h2>
+              <h2 className="text-xl font-bold text-white">Agregar Nueva Cámara</h2>
               <button
                 onClick={() => setIsOpen(false)}
-                className="text-slate-400 hover:text-slate-600 transition-colors"
+                className="text-slate-400 hover:text-slate-200 transition-colors"
               >
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -83,7 +83,7 @@ const AddCamera = ({ onCameraAdded }) => {
             <form onSubmit={handleSubmit} className="space-y-6">
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-2">
+                  <label className="block text-sm font-medium text-slate-300 mb-2">
                     Nombre de la cámara
                   </label>
                   <input
@@ -91,17 +91,17 @@ const AddCamera = ({ onCameraAdded }) => {
                     value={formData.nombre}
                     onChange={(e) => setFormData({...formData, nombre: e.target.value})}
                     placeholder="Ej: Entrada Principal"
-                    className="w-full px-4 py-3 border border-slate-300 rounded-xl bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                    className="w-full px-4 py-3 border border-slate-600 rounded-lg bg-slate-700 text-white focus:bg-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
                     required
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-2">
+                  <label className="block text-sm font-medium text-slate-300 mb-2">
                     Tipo de fuente de video
                   </label>
                   <div className="space-y-2">
-                    <label className="flex items-center p-3 border border-slate-200 rounded-lg hover:bg-slate-50 cursor-pointer">
+                    <label className="flex items-center p-3 border border-slate-600 rounded-lg hover:bg-slate-700 cursor-pointer">
                       <input
                         type="radio"
                         name="cameraType"
@@ -111,11 +111,11 @@ const AddCamera = ({ onCameraAdded }) => {
                         className="mr-3"
                       />
                       <div>
-                        <span className="text-sm font-medium text-slate-700">🌐 Cámara IP</span>
-                        <p className="text-xs text-slate-500">Se capturará en tu PC desde la URL proporcionada</p>
+                        <span className="text-sm font-medium text-white">Cámara IP</span>
+                        <p className="text-xs text-slate-400">Se capturará en tu PC desde la URL proporcionada</p>
                       </div>
                     </label>
-                    <label className="flex items-center p-3 border border-slate-200 rounded-lg hover:bg-slate-50 cursor-pointer">
+                    <label className="flex items-center p-3 border border-slate-600 rounded-lg hover:bg-slate-700 cursor-pointer">
                       <input
                         type="radio"
                         name="cameraType"
@@ -125,8 +125,8 @@ const AddCamera = ({ onCameraAdded }) => {
                         className="mr-3"
                       />
                       <div>
-                        <span className="text-sm font-medium text-slate-700">📹 Cámara del Dispositivo</span>
-                        <p className="text-xs text-slate-500">Cámara integrada de tu PC o teléfono</p>
+                        <span className="text-sm font-medium text-white">Cámara del Dispositivo</span>
+                        <p className="text-xs text-slate-400">Cámara integrada de tu PC o teléfono</p>
                       </div>
                     </label>
                   </div>
@@ -134,7 +134,7 @@ const AddCamera = ({ onCameraAdded }) => {
 
                 {cameraType === 'ip' && (
                   <div>
-                    <label className="block text-sm font-semibold text-slate-700 mb-2">
+                    <label className="block text-sm font-medium text-slate-300 mb-2">
                       URL de la cámara IP
                     </label>
                     <input
@@ -142,24 +142,24 @@ const AddCamera = ({ onCameraAdded }) => {
                       value={formData.url}
                       onChange={(e) => setFormData({...formData, url: e.target.value})}
                       placeholder="http://192.168.1.100:8080/video o rtsp://..."
-                      className="w-full px-4 py-3 border border-slate-300 rounded-xl bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                      className="w-full px-4 py-3 border border-slate-600 rounded-lg bg-slate-700 text-white focus:bg-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
                       required
                     />
-                    <p className="text-xs text-slate-500 mt-2">
-                      💡 La cámara se capturará localmente en tu PC. Los frames se procesarán y enviarán al backend.
+                    <p className="text-xs text-slate-400 mt-2">
+                      La cámara se capturará localmente en tu PC. Los frames se procesarán y enviarán al backend.
                     </p>
                   </div>
                 )}
 
                 {cameraType === 'local' && (
-                  <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                  <div className="p-4 bg-blue-600/20 rounded-lg border border-blue-600/30">
                     <div className="flex items-center mb-2">
-                      <svg className="w-5 h-5 text-blue-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg className="w-5 h-5 text-blue-400 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
                       </svg>
-                      <span className="text-sm font-semibold text-blue-800">Cámara del Dispositivo</span>
+                      <span className="text-sm font-medium text-blue-300">Cámara del Dispositivo</span>
                     </div>
-                    <p className="text-xs text-blue-700 mb-3">
+                    <p className="text-xs text-blue-300 mb-3">
                       Se usará la cámara integrada de tu dispositivo. Haz clic en "Configurar Cámara" para activarla.
                     </p>
                     <button
@@ -167,7 +167,7 @@ const AddCamera = ({ onCameraAdded }) => {
                       onClick={() => setShowLocalCamera(true)}
                       className="text-sm bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors"
                     >
-                      📹 Configurar Cámara Local
+                      Configurar Cámara Local
                     </button>
                   </div>
                 )}
@@ -177,14 +177,14 @@ const AddCamera = ({ onCameraAdded }) => {
                 <button
                   type="button"
                   onClick={() => setIsOpen(false)}
-                  className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 py-3 rounded-xl font-semibold transition-colors"
+                  className="flex-1 bg-slate-600 hover:bg-slate-500 text-white py-3 rounded-lg font-medium transition-colors"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
                   disabled={!formData.nombre || (cameraType === 'ip' && !formData.url)}
-                  className="flex-1 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white py-3 rounded-xl font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Agregar Cámara
                 </button>

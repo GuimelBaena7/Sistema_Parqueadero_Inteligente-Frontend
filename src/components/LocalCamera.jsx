@@ -6,18 +6,43 @@ const LocalCamera = ({ onCameraReady, onClose }) => {
   const [stream, setStream] = useState(null);
   const [isActive, setIsActive] = useState(false);
   const [error, setError] = useState(null);
+  const [availableCameras, setAvailableCameras] = useState([]);
+  const [selectedCamera, setSelectedCamera] = useState('');
+
+  // Obtener lista de cámaras disponibles
+  useEffect(() => {
+    const getCameras = async () => {
+      try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const videoDevices = devices.filter(device => device.kind === 'videoinput');
+        setAvailableCameras(videoDevices);
+        if (videoDevices.length > 0) {
+          setSelectedCamera(videoDevices[0].deviceId);
+        }
+      } catch (err) {
+        console.error('Error obteniendo cámaras:', err);
+      }
+    };
+    getCameras();
+  }, []);
 
   const startCamera = async () => {
     try {
       setError(null);
-      const mediaStream = await navigator.mediaDevices.getUserMedia({
-        video: { 
+      const constraints = {
+        video: selectedCamera ? {
+          deviceId: { exact: selectedCamera },
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        } : { 
           width: { ideal: 1280 },
           height: { ideal: 720 },
-          facingMode: 'environment' // Cámara trasera en móviles
+          facingMode: 'environment'
         },
         audio: false
-      });
+      };
+      
+      const mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
       
       setStream(mediaStream);
       if (videoRef.current) {
@@ -91,6 +116,28 @@ const LocalCamera = ({ onCameraReady, onClose }) => {
         {error && (
           <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
             <p className="text-red-700 text-sm">{error}</p>
+          </div>
+        )}
+
+        {/* Selector de cámara */}
+        {availableCameras.length > 1 && (
+          <div className="mb-4">
+            <label htmlFor="camera-select" className="block text-sm font-medium text-slate-700 mb-2">
+              Seleccionar Cámara
+            </label>
+            <select
+              id="camera-select"
+              value={selectedCamera}
+              onChange={(e) => setSelectedCamera(e.target.value)}
+              disabled={isActive}
+              className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+            >
+              {availableCameras.map((camera) => (
+                <option key={camera.deviceId} value={camera.deviceId}>
+                  {camera.label || `Cámara ${availableCameras.indexOf(camera) + 1}`}
+                </option>
+              ))}
+            </select>
           </div>
         )}
 

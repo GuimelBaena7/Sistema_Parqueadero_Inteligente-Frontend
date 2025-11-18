@@ -6,7 +6,10 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000
 
 const api = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 30000,
+  timeout: 8000, // Reducido de 30s a 8s
+  headers: {
+    'ngrok-skip-browser-warning': 'true'
+  }
 });
 
 export const useApi = () => {

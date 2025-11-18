@@ -134,39 +134,63 @@ const CameraCard = ({ camera, onEdit, onDelete, onToggleStatus }) => {
   };
 
   return (
-    <div className="bg-white rounded-lg shadow-md overflow-hidden border border-gray-200 hover:shadow-lg transition-shadow">
+    <div className="group relative bg-gradient-to-br from-slate-800/50 to-slate-900/50 rounded-3xl shadow-2xl overflow-hidden border border-slate-700/50 hover:border-blue-500/50 transition-all duration-500 backdrop-blur-xl hover:shadow-blue-500/20 hover:transform hover:scale-[1.02]">
+      {/* Efecto de brillo en hover */}
+      <div className="absolute inset-0 bg-gradient-to-r from-blue-500/0 via-purple-500/5 to-pink-500/0 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+      
       {/* Video Canvas */}
-      <div className="bg-gray-900 relative" style={{ aspectRatio: '16/9' }}>
+      <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 relative overflow-hidden" style={{ aspectRatio: '16/9' }}>
+        {/* Patrón de fondo animado */}
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(59,130,246,0.1),transparent_50%)] animate-pulse"></div>
+        
         <canvas
           ref={canvasRef}
           width={640}
           height={360}
-          className="w-full h-full object-cover"
+          className="relative w-full h-full object-cover"
         />
 
+        {/* Indicador de grabación cuando está conectado */}
+        {isConnected && (
+          <div className="absolute top-4 right-4 flex items-center space-x-2 bg-red-500/20 backdrop-blur-md px-3 py-2 rounded-full border border-red-500/30 z-10">
+            <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse shadow-lg shadow-red-500/50"></div>
+            <span className="text-red-300 text-xs font-bold">REC</span>
+          </div>
+        )}
+
         {!isConnected && (
-          <div className="absolute inset-0 flex items-center justify-center bg-gray-950 bg-opacity-75">
-            <div className="text-center">
+          <div className="absolute inset-0 flex items-center justify-center backdrop-blur-sm bg-slate-900/50">
+            <div className="text-center p-6 rounded-2xl bg-slate-800/50 border border-slate-700/50 backdrop-blur-xl">
               {isConnecting ? (
                 <>
-                  <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-500 border-t-transparent mx-auto mb-3"></div>
-                  <p className="text-white text-sm">Conectando...</p>
+                  <div className="relative mb-4">
+                    <div className="animate-spin rounded-full h-16 w-16 border-4 border-blue-500/30 border-t-blue-500 mx-auto"></div>
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full blur-lg animate-pulse"></div>
+                    </div>
+                  </div>
+                  <p className="text-blue-300 text-sm font-semibold">Conectando cámara...</p>
+                  <p className="text-slate-400 text-xs mt-1">Estableciendo enlace</p>
                 </>
               ) : error ? (
                 <>
-                  <div className="text-4xl mb-3">⚠️</div>
-                  <p className="text-red-400 text-sm mb-3">{error}</p>
+                  <div className="text-6xl mb-4 animate-bounce">⚠️</div>
+                  <p className="text-red-300 text-sm font-semibold mb-4 max-w-xs">{error}</p>
                   <button
                     onClick={handleReconnect}
-                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded text-white text-sm font-medium"
+                    className="px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 rounded-xl text-white text-sm font-bold shadow-lg shadow-blue-500/30 transform hover:scale-105 transition-all"
                   >
-                    Reintentar
+                    🔄 Reintentar Conexión
                   </button>
                 </>
               ) : (
                 <>
-                  <div className="text-4xl mb-3">📹</div>
-                  <p className="text-gray-400 text-sm">Esperando video...</p>
+                  <div className="relative mb-4">
+                    <div className="text-6xl animate-pulse">📹</div>
+                    <div className="absolute -bottom-2 -right-2 w-4 h-4 bg-yellow-400 rounded-full animate-ping"></div>
+                  </div>
+                  <p className="text-slate-300 text-sm font-semibold">Cámara en espera</p>
+                  <p className="text-slate-400 text-xs mt-1">Aguardando señal de video</p>
                 </>
               )}
             </div>
@@ -175,37 +199,57 @@ const CameraCard = ({ camera, onEdit, onDelete, onToggleStatus }) => {
       </div>
 
       {/* Header */}
-      <div className="px-4 py-3 border-t border-gray-200 flex items-center justify-between">
-        <div className="flex items-center space-x-2 flex-1 min-w-0">
-          <div className={`w-3 h-3 rounded-full flex-shrink-0 ${
-            isConnected ? 'bg-green-500' : 'bg-red-500'
-          }`}></div>
-          <div className="min-w-0">
-            <h3 className="font-semibold text-gray-800 truncate">{nombre}</h3>
-            <p className="text-xs text-gray-500 truncate">{url}</p>
+      <div className="px-5 py-4 border-t border-slate-700/50 bg-gradient-to-r from-slate-800/50 to-slate-700/30 backdrop-blur-sm">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-3 flex-1 min-w-0">
+            <div className="relative">
+              <div className={`w-4 h-4 rounded-full flex-shrink-0 ${
+                isConnected ? 'bg-emerald-400 shadow-lg shadow-emerald-500/50' : 'bg-red-400 shadow-lg shadow-red-500/50'
+              }`}></div>
+              {isConnected && (
+                <div className="absolute inset-0 w-4 h-4 bg-emerald-400 rounded-full animate-ping opacity-75"></div>
+              )}
+            </div>
+            <div className="min-w-0 flex-1">
+              <h3 className="font-bold text-white text-lg truncate bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
+                {nombre}
+              </h3>
+              <p className="text-xs text-slate-400 truncate font-medium">{url || 'Cámara local'}</p>
+            </div>
           </div>
         </div>
       </div>
 
       {/* Footer */}
-      <div className="px-4 py-2 bg-gradient-to-r from-gray-50 to-gray-100 border-t border-gray-200 text-xs flex justify-between items-center">
-        <div className="flex items-center space-x-2">
-          <span className="text-gray-600">ID: {id}</span>
-          {tipo && (
-            <span className="px-2 py-0.5 bg-blue-100 text-blue-800 rounded text-xs">
-              {tipo === 'local' ? '📱 Local' : '🎥 IP'}
+      <div className="px-5 py-3 bg-gradient-to-r from-slate-900/80 to-slate-800/80 border-t border-slate-700/50 backdrop-blur-sm">
+        <div className="flex justify-between items-center">
+          <div className="flex items-center space-x-3">
+            <span className="text-slate-400 text-xs font-medium">ID: <span className="text-blue-400 font-bold">{id}</span></span>
+            {tipo && (
+              <span className={`px-3 py-1 rounded-full text-xs font-bold backdrop-blur-sm ${
+                tipo === 'local' 
+                  ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30' 
+                  : 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30'
+              }`}>
+                {tipo === 'local' ? '📱 Local' : '🎥 IP'}
+              </span>
+            )}
+            <span className={`px-3 py-1 rounded-full text-xs font-bold backdrop-blur-sm ${
+              isConnected 
+                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' 
+                : 'bg-red-500/20 text-red-300 border border-red-500/30'
+            }`}>
+              {isConnected ? '● En vivo' : '○ Offline'}
             </span>
-          )}
-        </div>
-        <div className="flex items-center space-x-2">
-          <span className={`font-medium ${isConnected ? 'text-green-600' : 'text-red-600'}`}>
-            {isConnected ? 'En vivo' : 'Desconectado'}
-          </span>
+          </div>
           <button
             onClick={() => onDelete(id)}
-            className="text-red-500 hover:text-red-700 text-sm px-2 py-1 rounded hover:bg-red-50"
+            className="group relative p-2 rounded-xl bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 hover:border-red-500/40 transition-all duration-300 transform hover:scale-110"
+            title="Eliminar cámara"
           >
-            🗑️
+            <svg className="w-5 h-5 text-red-400 group-hover:text-red-300 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
           </button>
         </div>
       </div>
