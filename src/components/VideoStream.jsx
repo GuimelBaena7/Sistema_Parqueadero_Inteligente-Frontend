@@ -1,269 +1,256 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 
 /**
- * VideoStream - Componente mejorado para cámaras
- * - Soporta modos: camera_url y camera_local
- * - Usa WebSocket con el servidor backend
- * - Maneja tanto cámaras IP como cámaras locales
- * - Optimizado para el servidor ngrok
+ * VideoStream - SIMPLIFICADO: Replica exactamente VideoUpload
+ * Usa: setInterval(captureAndSendFrame, 1000/fps) + canvas.toBlob(async callback)
  */
-const VideoStream = () => {
+const VideoStream = ({ camera = {}, onDetection }) => {
+  const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const wsRef = useRef(null);
-  const captureCanvasRef = useRef(null);
-  const localVideoRef = useRef(null);
+  const intervalRef = useRef(null);
+
   const [isConnected, setIsConnected] = useState(false);
-  const [statusMsg, setStatusMsg] = useState('Desconectado');
+  const [isCapturing, setIsCapturing] = useState(false);
   const [error, setError] = useState(null);
-  const [mode, setMode] = useState('camera_url');
-  const [host, setHost] = useState(() => import.meta.env.VITE_WS_HOST || 'thomasina-speedless-kayce.ngrok-free.dev');
-  const [scheme, setScheme] = useState(() => import.meta.env.VITE_WS_SCHEME || 'wss');
-  const [cameraUrl, setCameraUrl] = useState('');
+  const [fps] = useState(10); // Reducido de 30 a 10 FPS para Colab
+  const [resolution] = useState({ width: 480, height: 360 }); // Resolución reducida (480p)
+  const [quality] = useState(0.6); // Compresión JPEG agresiva (60%)
+  const [skipFrames] = useState(2); // Procesar 1 de cada 3 frames
+  const [stats, setStats] = useState({ frame: 0, sent: 0, skipped: 0, latency: 0 });
+  const frameCounterRef = useRef(0);
+  const lastSendTimeRef = useRef(Date.now());
 
-  // performance / behavior controls
-  const [fps, setFps] = useState(10);
-  const [resolution, setResolution] = useState('auto'); // 'auto' | '320x240' | '640x360' | '1280x720'
-  const [autoReduce, setAutoReduce] = useState(true);
-  const [autoReconnect, setAutoReconnect] = useState(true);
-  const [reconnectInterval, setReconnectInterval] = useState(3); // seconds
+  const WS_URL = import.meta.env.VITE_WS_URL || 'wss://localhost:8000/ws/camara-directa';
 
-  // capture state
-  const [capturing, setCapturing] = useState(false);
-  const mediaStreamRef = useRef(null);
-  const rafRef = useRef(null);
-  const [lastSendTs, setLastSendTs] = useState(null);
-  const [lastRecvTs, setLastRecvTs] = useState(null);
-  const [lastLatency, setLastLatency] = useState(null);
-  const [lastFrameBytes, setLastFrameBytes] = useState(null);
-  const testPendingRef = useRef(null);
+  useEffect(() => {
+    connectAndStart();
+    return () => cleanup();
+  }, [camera]);
 
-  // helper: build ws url
-  function buildWsUrl(){
-    // if VITE_WS_URL present, prefer it
-    const envUrl = import.meta.env.VITE_WS_URL;
-    if(envUrl) return envUrl;
-    const h = host.trim();
-    if(!h) throw new Error('Host vacío');
-    return `${scheme}://${h}/ws/camara-directa`;
-  }
+  const cleanup = () => {
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+    if (wsRef.current) wsRef.current.close();
+    if (isCapturing) stopCapture();
+  };
 
-  function logStatus(msg){
-    console.log(msg);
-    setStatusMsg(msg);
-  }
-
-  // connect and send initial message depending on mode
-  async function connect() {
-    if(wsRef.current) return;
-    let url;
-    try{ url = buildWsUrl(); }catch(e){ setError(e.message); return; }
-    logStatus(`Conectando a ${url}...`);
-    setError(null);
-
-    wsRef.current = new WebSocket(url);
-    wsRef.current.binaryType = 'arraybuffer';
-
-    wsRef.current.onopen = async () => {
-      setIsConnected(true);
-      logStatus('Conectado al servidor');
+  // ========== CONECTAR WEBSOCKET ==========
+  const connectWebSocket = () => {
+    return new Promise((resolve, reject) => {
+      const ws = new WebSocket(WS_URL);
       
-      // Enviar headers necesarios para ngrok
-      const headers = { 'ngrok-skip-browser-warning': 'true' };
-      
-      // send initial message
-      if(mode === 'camera_url'){
-        if(!cameraUrl) {
-          setError('URL de cámara requerida para camera_url');
-          return;
-        }
-        const msg = { type: 'camera_url', url: cameraUrl, headers };
-        wsRef.current.send(JSON.stringify(msg));
-        logStatus('Conectado a cámara IP');
-      } else {
-        const msg = { type: 'camera_local', headers };
-        wsRef.current.send(JSON.stringify(msg));
-        logStatus('Iniciando cámara local...');
-        // start capture
-        try{ await startCapture(); setCapturing(true); }
-        catch(err){ setError('Error al iniciar cámara: ' + err.message); }
-      }
-    };
+      ws.onopen = () => {
+        console.log('📡 WebSocket conectado');
+        ws.send(JSON.stringify({
+          type: 'camera_local',
+          camera_name: camera?.nombre || 'VideoStream',
+        }));
+        setIsConnected(true);
+        wsRef.current = ws;
+        resolve(ws);
+      };
 
-    wsRef.current.onmessage = (ev) => {
-      try{
-        // If binary (ArrayBuffer/Blob) -> draw to canvas
-        if(ev.data instanceof ArrayBuffer || ev.data instanceof Blob){
-          const blob = ev.data instanceof Blob ? ev.data : new Blob([ev.data], { type: 'image/jpeg' });
-          // update stats: frame size and receive time
-          try{ const size = ev.data instanceof Blob ? ev.data.size : (ev.data.byteLength || null); if(size) setLastFrameBytes(size); }catch(e){}
-          setLastRecvTs(Date.now());
-          if(testPendingRef.current){
-            const latency = Date.now() - testPendingRef.current;
-            setLastLatency(latency);
-            testPendingRef.current = null;
-          }
-          const img = new Image();
+      ws.onmessage = (event) => {
+        if (event.data instanceof Blob || event.data instanceof ArrayBuffer) {
+          const blob = event.data instanceof Blob ? event.data : new Blob([event.data], { type: 'image/jpeg' });
           const url = URL.createObjectURL(blob);
+          const img = new Image();
           img.onload = () => {
             const canvas = canvasRef.current;
-            if(!canvas) return;
-            canvas.width = img.width;
-            canvas.height = img.height;
-            const ctx = canvas.getContext('2d');
-            ctx.drawImage(img, 0, 0);
+            if (canvas) {
+              canvas.width = img.width;
+              canvas.height = img.height;
+              const ctx = canvas.getContext('2d');
+              ctx.drawImage(img, 0, 0);
+            }
             URL.revokeObjectURL(url);
           };
           img.src = url;
-        } else {
-          // maybe server sends base64 text
-          const text = typeof ev.data === 'string' ? ev.data : null;
-          if(text){
-            // attempt to draw base64 jpeg
-            const canvas = canvasRef.current;
-            if(canvas){
-              const ctx = canvas.getContext('2d');
-              const img = new Image();
-              img.onload = () => { canvas.width = img.width; canvas.height = img.height; ctx.drawImage(img,0,0); };
-              img.src = `data:image/jpeg;base64,${text}`;
-              setLastRecvTs(Date.now());
-              if(testPendingRef.current){ const latency = Date.now() - testPendingRef.current; setLastLatency(latency); testPendingRef.current = null; }
-            }
-          }
         }
-      }catch(err){ console.error('Error procesando frame:', err); }
-    };
+      };
 
-    wsRef.current.onerror = (err) => {
-      console.error('WebSocket error', err);
-      setError('Error WebSocket');
-    };
+      ws.onerror = (err) => {
+        console.error('❌ WebSocket error:', err);
+        reject(err);
+      };
 
-    wsRef.current.onclose = () => {
-      logStatus('Desconectado');
-      setIsConnected(false);
-      // stop capture if running
-      stopCapture();
-      // clear ref
-      wsRef.current = null;
-      // auto reconnect if enabled
-      if (autoReconnect) {
-        logStatus(`Reconectando en ${reconnectInterval}s...`);
-        setTimeout(() => {
-          connect();
-        }, reconnectInterval * 1000);
-      }
-    };
-  }
+      ws.onclose = () => {
+        setIsConnected(false);
+        console.log('WebSocket cerrado');
+      };
+    });
+  };
 
-  function disconnect(){
-    if(wsRef.current){
-      try{ wsRef.current.close(); }catch(e){}
-    }
-    stopCapture();
-    setIsConnected(false);
-    setCapturing(false);
-    logStatus('Desconectado');
-  }
-
-  // send a small test frame or ping to measure round-trip if backend echoes/processes
-  async function testWebSocket(){
-    if(!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN){
-      setError('WebSocket no abierto');
+  // ========== CAPTURAR Y ENVIAR FRAME (OPTIMIZADO PARA COLAB) ==========
+  const captureAndSendFrame = async () => {
+    if (!videoRef.current || !wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
       return;
     }
-    // create a small test canvas
-    const c = document.createElement('canvas');
-    c.width = 160; c.height = 120;
-    const ctx = c.getContext('2d');
-    ctx.fillStyle = '#222'; ctx.fillRect(0,0,c.width,c.height);
-    ctx.fillStyle = '#0f0'; ctx.fillRect(10,10,140,100);
-    ctx.fillStyle = '#fff'; ctx.font = '16px sans-serif'; ctx.fillText('TEST', 40, 65);
-    c.toBlob((blob)=>{
-      if(!blob) return;
-      try{
-        testPendingRef.current = Date.now();
-        setLastSendTs(Date.now());
-        setLastFrameBytes(blob.size);
-        wsRef.current.send(blob);
-        // timeout after 5s if no response
-        setTimeout(()=>{ if(testPendingRef.current){ setError('No response to test within 5s'); testPendingRef.current = null; } }, 5000);
-      }catch(e){ setError('Error enviando test: ' + e.message); }
-    }, 'image/jpeg', 0.7);
-  }
 
-  // Local camera capture and sending frames as Blob JPEG
-  async function startCapture(){
-    if(mediaStreamRef.current) return;
-    // optionally reduce constraints based on network
-    let constraints = { video: true, audio: false };
-    try{
-      if(autoReduce && navigator.connection && navigator.connection.effectiveType){
-        const t = navigator.connection.effectiveType; // '4g','3g', etc
-        if(t.includes('2g') || t.includes('3g')){
-          constraints = { video: { width: 320, height: 240 }, audio: false };
+    // Skip frames: Procesar solo 1 de cada N frames para reducir carga
+    frameCounterRef.current++;
+    if (frameCounterRef.current % (skipFrames + 1) !== 0) {
+      setStats(prev => ({ ...prev, skipped: prev.skipped + 1 }));
+      return;
+    }
+
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d', { alpha: false, willReadFrequently: false });
+    
+    // Usar resolución reducida (480p) para menor tamaño de datos
+    canvas.width = resolution.width;
+    canvas.height = resolution.height;
+    
+    // Dibujar video escalado a resolución menor
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    
+    const sendTime = Date.now();
+    
+    // Compresión JPEG agresiva (60%) para reducir tamaño
+    canvas.toBlob(async (blob) => {
+      if (blob && wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+        try {
+          const arrayBuffer = await blob.arrayBuffer();
+          wsRef.current.send(arrayBuffer);
+          
+          // Calcular latencia de envío
+          const latency = Date.now() - sendTime;
+          setStats(prev => ({ 
+            ...prev, 
+            frame: prev.frame + 1,
+            sent: prev.sent + 1,
+            latency: Math.round((prev.latency * 0.9) + (latency * 0.1)) // Promedio móvil
+          }));
+        } catch (err) {
+          console.error('Error enviando frame:', err);
         }
       }
-    }catch(e){ /* ignore */ }
+    }, 'image/jpeg', quality);
+  };
 
-    const stream = await navigator.mediaDevices.getUserMedia(constraints);
-    mediaStreamRef.current = stream;
-    const video = localVideoRef.current;
-    video.srcObject = stream;
-    await video.play();
+  // ========== INICIAR CAPTURA LOCAL ==========
+  const startCapture = async () => {
+    try {
+      // Solicitar resolución baja desde la cámara (480p)
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          width: { ideal: resolution.width },
+          height: { ideal: resolution.height },
+          frameRate: { ideal: fps, max: fps }
+        },
+        audio: false
+      });
 
-    // set up capture canvas and target resolution
-    const cap = captureCanvasRef.current;
-    let w = video.videoWidth || 640;
-    let h = video.videoHeight || 480;
-    if(resolution !== 'auto'){
-      const parts = resolution.split('x');
-      if(parts.length === 2){ w = parseInt(parts[0],10) || w; h = parseInt(parts[1],10) || h; }
-    }
-    cap.width = w;
-    cap.height = h;
-    const ctx = cap.getContext('2d');
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        await videoRef.current.play();
+        setIsCapturing(true);
+        
+        await new Promise(resolve => {
+          if (videoRef.current.videoWidth) {
+            resolve();
+          } else {
+            videoRef.current.addEventListener('loadedmetadata', resolve, { once: true });
+          }
+        });
 
-    // controlled frame loop according to FPS setting
-    let last = 0;
-    const interval = 1000 / (fps || 10);
-    function frameLoop(ts){
-      if(!mediaStreamRef.current) return;
-      if(!last) last = ts;
-      const elapsed = ts - last;
-      if(elapsed >= interval){
-        try{
-          ctx.drawImage(video, 0, 0, cap.width, cap.height);
-          cap.toBlob((blob) => {
-            if(blob && wsRef.current && wsRef.current.readyState === WebSocket.OPEN){
-              try{ wsRef.current.send(blob); }catch(e){ console.error('Error enviando blob:', e); }
-            }
-          }, 'image/jpeg', 0.7);
-        }catch(e){ console.error('Error en captura:', e); }
-        last = ts;
+        const frameInterval = 1000 / fps;
+        intervalRef.current = setInterval(captureAndSendFrame, frameInterval);
+        console.log(`🎬 Captura iniciada: ${fps} FPS`);
       }
-      rafRef.current = requestAnimationFrame(frameLoop);
+    } catch (err) {
+      console.error('❌ Error captura:', err);
+      setError('No se pudo acceder a la cámara');
     }
-    rafRef.current = requestAnimationFrame(frameLoop);
-    setCapturing(true);
-  }
+  };
 
-  function stopCapture(){
-    if(rafRef.current){ cancelAnimationFrame(rafRef.current); rafRef.current = null; }
-    if(mediaStreamRef.current){
-      mediaStreamRef.current.getTracks().forEach(t => t.stop());
-      mediaStreamRef.current = null;
+  const stopCapture = () => {
+    setIsCapturing(false);
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
     }
-    if(localVideoRef.current){ localVideoRef.current.srcObject = null; }
-    setCapturing(false);
-  }
+    if (videoRef.current && videoRef.current.srcObject) {
+      videoRef.current.srcObject.getTracks().forEach(t => t.stop());
+      videoRef.current.srcObject = null;
+    }
+  };
 
-  // cleanup
-  useEffect(() => {
-    // set mobile defaults on mount
-    try{
-      const isMobile = /Mobi|Android|iPhone|iPad/.test(navigator.userAgent) || (window.innerWidth && window.innerWidth < 760);
-      if(isMobile){
-        setFps(10);
+  const connectAndStart = async () => {
+    try {
+      await connectWebSocket();
+      if (camera?.tipo === 'local') {
+        await startCapture();
+      }
+    } catch (err) {
+      console.error('Error conectando:', err);
+      setError('Error de conexión');
+    }
+  };
+
+  return (
+    <div className="bg-white rounded-lg shadow-md overflow-hidden flex flex-col h-full">
+      <div className="p-3 bg-gray-50 border-b">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-2">
+            <div className={`w-3 h-3 rounded-full ${isConnected ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`} />
+            <h3 className="font-semibold text-gray-900">{camera?.nombre || 'VideoStream'}</h3>
+            <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${camera?.tipo === 'local' ? 'bg-blue-100 text-blue-800' : 'bg-purple-100 text-purple-800'}`}>
+              {camera?.tipo === 'local' ? '📹 Local' : '🌐 IP'}
+            </span>
+            {isCapturing && (
+              <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                ✓ Capturando
+              </span>
+            )}
+          </div>
+          <div className="flex items-center space-x-3 text-xs text-gray-600">
+            <span>📊 {stats.sent}/{stats.frame} frames</span>
+            <span>⏭️ {stats.skipped} skip</span>
+            <span>⏱️ {stats.latency}ms</span>
+            <span className="text-orange-600">🔥 {resolution.width}x{resolution.height}@{fps}fps Q{Math.round(quality*100)}%</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="relative flex-1 bg-black min-h-96">
+        <canvas ref={canvasRef} className="w-full h-full object-contain" style={{ backgroundColor: '#000' }} />
+
+        {!isConnected && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-75">
+            <div className="text-center text-white">
+              <div className="w-8 h-8 border-2 border-white border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
+              <p className="text-sm">Conectando...</p>
+              {error && <p className="text-xs text-red-400 mt-2">{error}</p>}
+            </div>
+          </div>
+        )}
+
+        {error && isConnected && (
+          <div className="absolute top-2 right-2 bg-red-600 text-white px-3 py-1 rounded text-xs">
+            ⚠️ {error}
+          </div>
+        )}
+      </div>
+
+      <video ref={videoRef} autoPlay muted playsInline style={{ display: 'none' }} />
+
+      <div className="p-2 bg-gray-50 border-t text-xs text-gray-600 flex justify-between">
+        <span>Estado: {isConnected ? '🟢 Conectado' : '🔴 Desconectado'}</span>
+        <span>{isCapturing ? 'Capturando' : 'Listo'}</span>
+      </div>
+    </div>
+  );
+};
+
+export default VideoStream;
         setResolution((r)=> r === 'auto' ? '640x360' : r);
       }
     }catch(e){}

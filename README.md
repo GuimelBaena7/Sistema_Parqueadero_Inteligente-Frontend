@@ -2,6 +2,9 @@
 
 Frontend moderno desarrollado con React + Vite + TailwindCSS para el sistema de parqueadero inteligente con detección automática de placas en tiempo real.
 
+## 🚀 **OPTIMIZADO PARA GOOGLE COLAB**
+Este frontend está específicamente optimizado para trabajar con backends en Google Colab a través de ngrok, minimizando latencia y ancho de banda. Ver [OPTIMIZACIONES_COLAB.md](./OPTIMIZACIONES_COLAB.md) para detalles completos.
+
 ## Instalación y Configuración
 
 ### 1. Instalar dependencias

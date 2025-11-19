@@ -5,7 +5,11 @@ const VideoUpload = () => {
   const [videoFile, setVideoFile] = useState(null);
   const [videoUrl, setVideoUrl] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [fps, setFps] = useState(10);
+  const [fps, setFps] = useState(10); // Optimizado para Colab
+  const [resolution] = useState({ width: 480, height: 360 }); // 480p para menor carga
+  const [quality] = useState(0.6); // Compresión JPEG 60%
+  const [skipFrames] = useState(2); // Skip 2 de cada 3 frames
+  const frameCounterRef = useRef(0);
   const [processedFrame, setProcessedFrame] = useState(null);
   const [stats, setStats] = useState({ frame: 0, detections: 0 });
   
@@ -95,24 +99,33 @@ const VideoUpload = () => {
       return;
     }
 
+    // Skip frames: Procesar solo 1 de cada 3 frames
+    frameCounterRef.current++;
+    if (frameCounterRef.current % (skipFrames + 1) !== 0) {
+      return;
+    }
+
     const video = videoRef.current;
     const canvas = canvasRef.current;
     
     if (!canvas) return;
 
-    const ctx = canvas.getContext('2d');
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext('2d', { alpha: false, willReadFrequently: false });
     
+    // Reducir resolución a 480p
+    canvas.width = resolution.width;
+    canvas.height = resolution.height;
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
     
-    // Convertir a blob y enviar
-    canvas.toBlob((blob) => {
+    // Convertir a blob con compresión agresiva 60%
+    canvas.toBlob(async (blob) => {
       if (blob && wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-        wsRef.current.send(blob);
+        // Convertir blob a ArrayBuffer para enviar bytes puros
+        const arrayBuffer = await blob.arrayBuffer();
+        wsRef.current.send(arrayBuffer);
         setStats(prev => ({ ...prev, frame: prev.frame + 1 }));
       }
-    }, 'image/jpeg', 0.8);
+    }, 'image/jpeg', quality);
   };
 
   const startProcessing = async () => {
